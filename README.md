@@ -1,5 +1,7 @@
 # omatodolist
 
+![omatodolist preview](preview.png)
+
 A keyboard-driven **notes + todo list + history** plugin for the Omarchy shell, shipped as a `bar-widget`. Short notes and todos share one unified list, sorted pending-first then by most-recent, and every change is persisted to an on-disk SQLite database. The plugin watches that database file and refreshes automatically when it changes elsewhere (or when the panel reopens), so the UI never goes stale.
 
 ## Features
