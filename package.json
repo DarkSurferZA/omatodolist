@@ -1,0 +1,12 @@
+{
+  "name": "omatodolist",
+  "version": "1.0.0",
+  "private": true,
+  "description": "omatodolist Omarchy bar-widget plugin: notes + todos + history, keyboard-driven, SQLite-backed with file-watcher auto-refresh.",
+  "scripts": {
+    "validate": "omarchy plugin validate ."
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

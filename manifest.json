@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.darksurferza.omatodolist",
+  "name": "omatodolist",
+  "version": "1.0.0",
+  "author": "Cailan Sacks",
+  "description": "omatodolist: short notes + todo list manager + history tab, keyboard-driven, SQLite-backed with file-watcher auto-refresh",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  }
+}
