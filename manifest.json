@@ -10,5 +10,10 @@
   ],
   "entryPoints": {
     "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "omatodolist",
+    "category": "Productivity",
+    "allowMultiple": false
   }
 }

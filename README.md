@@ -13,22 +13,15 @@ A keyboard-driven **notes + todo list + history** plugin for the Omarchy shell, 
 
 ## Install
 
-> Note: `omarchy plugin validate` rejects symlinks inside plugin folders, so the plugin is installed by **copying** the files into the plugins directory rather than symlinking. The repo is the source of truth; re-copy after edits.
+```sh
+omarchy plugin add https://github.com/DarkSurferZA/omatodolist.git --enable
+```
 
-1. Build/obtain the plugin files (or clone this repository).
-2. Copy the plugin folder into the Omarchy plugins directory:
+## Remove
 
-   ```sh
-   mkdir -p ~/.config/omarchy/plugins/omatodolist
-   cp -r manifest.json BarWidget.qml Panel.qml data ui ~/.config/omarchy/plugins/omatodolist/
-   ```
-
-3. Enable and validate the plugin:
-
-   ```sh
-   omarchy plugin validate .       # from the plugin directory
-   omarchy plugin enable io.github.darksurferza.omatodolist
-   ```
+```sh
+omarchy plugin remove io.github.darksurferza.omatodolist
+```
 
 ## Usage
 
@@ -52,9 +45,6 @@ Every mutation is async and converges on the UI through the file watcher.
 ## Development
 
 - `npm run validate` — `omarchy plugin validate .`
-- `npm run test:db` — data-layer tests (plain Node, no QML)
-- `npm run test:ui` / `test:history` / `test:dbsmoke` / `test:edge` — QML smokes via `scripts/smoke.sh`
-- `npm test` — everything
 
 ## Skills
 
