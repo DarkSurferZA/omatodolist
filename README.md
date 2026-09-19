@@ -61,3 +61,5 @@ Copyright © 2026 Cailan Sacks
 ## AI Disclosure
 
 Parts of this package, including code and this documentation, were developed with the assistance of AI tools (OpenCode) working from the project specification under human direction.
+
+AI SKILL moved to DarkSurferZA/omatodolist-skill
