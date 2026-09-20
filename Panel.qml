@@ -39,12 +39,18 @@ Panel {
         Component.onCompleted: db.init()
     }
     onOpenedChanged: {
-        if (!root.opened) return
+        if (!root.opened) {
+            mainTab.commitIfDirty()
+            return
+        }
         db.load()
         root.resetTabFocus()
         focusPrimeTimer.restart()
     }
-    onActiveTabChanged: root.resetTabFocus()
+    onActiveTabChanged: {
+        mainTab.commitIfDirty()
+        root.resetTabFocus()
+    }
 
     // The popup surface maps a beat after `opened` flips (layer-shell focus
     // negotiation), so re-prime keyboard focus on a short retry like the
