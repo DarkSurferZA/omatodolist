@@ -4,7 +4,8 @@
   "private": true,
   "description": "omatodolist Omarchy bar-widget plugin: notes + todos + history, keyboard-driven, SQLite-backed with file-watcher auto-refresh.",
   "scripts": {
-    "validate": "omarchy plugin validate ."
+    "validate": "omarchy plugin validate .",
+    "test": "node --test test/ && test/render.sh && test/behavior.sh"
   },
   "engines": {
     "node": ">=18"
