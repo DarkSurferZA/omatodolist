@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# Leave the panel on the "Notes & Todos" tab before running: the active tab
-# survives a close, `n` does nothing on History, and the script cannot read
-# which tab is up.
+# Drives the real panel with wtype, then checks sqlite for the rows.
 
 set -euo pipefail
 
