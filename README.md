@@ -47,10 +47,11 @@ Every mutation is async and converges on the UI through the file watcher.
 ## Development
 
 - `npm run validate` — `omarchy plugin validate .`
+- `npm test` — runs `node --test test/`, then `test/render.sh` and `test/behavior.sh` (each spins up an offscreen Quickshell and takes about a minute).
 
 ## Skills
 
-The `skills/omatodolist-agent/` directory contains an OpenCode agent skill for driving the plugin via IPC from the command line. Install it by copying the `skills/omatodolist-agent` folder into your agent's skills directory.
+An OpenCode agent skill for driving the plugin via IPC from the command line lives at [DarkSurferZA/omatodolist-skill](https://github.com/DarkSurferZA/omatodolist-skill).
 
 ## License
 
@@ -61,5 +62,3 @@ Copyright © 2026 Cailan Sacks
 ## AI Disclosure
 
 Parts of this package, including code and this documentation, were developed with the assistance of AI tools (OpenCode) working from the project specification under human direction.
-
-AI SKILL moved to DarkSurferZA/omatodolist-skill
