@@ -1,29 +1,18 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import QtQuick.Controls as QQC
 import QtQuick.Layouts
 import qs.Commons
-import qs.Ui
+import "Icons.js" as Icons
+import "Item.js" as ItemJs
 
-// "History" tab (spec §3.3): a read-only mutation log rendered as a table of
+// "History" tab: a read-only mutation log rendered as a table of
 // `type | title | action | timestamp` rows (newest-first, from db.history).
-// The Toast is owned by Panel.qml and injected here (Quickshell ignores
-// single-file imports, so components never reference each other by type name).
-//
-// Keyboard map (spec §3.3 + confirmed with the user):
-//   j/k or ↑/↓  move selection
-//   d           delete the selected row (double-press within 2s to confirm)
-//   c           clear the whole history (same as the "Clear History" button)
-//   Esc         cancel an armed delete, otherwise close the panel
-//
-// Focus model: `pump` owns keyboard focus; mouse clicks select a row and
-// return focus to the list. Deletion/clear confirmations surface as toasts,
-// and errors from the data layer do too.
+// Title and row count live in Panel's tab Segment, not here. The Toast is
+// owned by Panel.qml and injected here.
 Item {
     id: root
 
-    // ------------------------------------------------------------------ deps
     property QtObject db: null              // Panel's Data.Db instance
     property var toast: null                // ui/Toast instance (Panel-owned)
     property color foreground: Color.foreground
@@ -31,15 +20,13 @@ Item {
 
     signal closeRequested()                 // Esc in the list closes the panel
 
-    // ------------------------------------------------------------------ state
     property int selectedId: -1
     property int deleteArmId: -1            // -1 = not armed
     readonly property bool deleteArmed: root.deleteArmId >= 0
     readonly property bool clearButtonEnabled: root.db ? root.db.history.length > 0 : false
 
-    // ------------------------------------------------------------------ derived
     readonly property var rowList: root.db ? (root.db.history || []) : []
-    readonly property int selectedIndex: root.indexOfId(root.rowList, root.selectedId)
+    readonly property int selectedIndex: ItemJs.indexOfId(root.rowList, root.selectedId)
     readonly property var selectedRow: root.selectedIndex >= 0 ? root.rowList[root.selectedIndex] : null
 
     // Column widths shared by the header and every delegate so cells stay in
@@ -48,14 +35,8 @@ Item {
     readonly property int colActionW: Style.space(76)
     readonly property int colTsW: Style.space(128)
 
-    function indexOfId(rows, id) {
-        var list = rows || []
-        for (var i = 0; i < list.length; ++i)
-            if (Number(list[i].id) === Number(id)) return i
-        return -1
-    }
 
-    // Unix seconds -> "YYYY-MM-DD HH:MM" (spec §3.3 table example).
+    // Unix seconds -> "YYYY-MM-DD HH:MM".
     function formatTs(ts) {
         var n = Number(ts)
         if (!isFinite(n) || n <= 0) return "--"
@@ -70,17 +51,15 @@ Item {
         var a = String(action || "")
         if (a === "deleted") return Color.urgent
         if (a === "completed") return root.accent
-        return Qt.darker(root.foreground, 1.2)
+        return Util.alpha(root.foreground, 0.75)
     }
 
-    // ------------------------------------------------------------------ focus
     function focusList() { pump.forceActiveFocus() }
     function resetFocus() {
         root.cancelDelete()
         root.focusList()
     }
 
-    // ------------------------------------------------------------------ navigation
     function moveSelection(delta) {
         var rows = root.rowList
         var n = rows.length
@@ -92,7 +71,6 @@ Item {
         listView.positionViewAtIndex(next, ListView.Center)
     }
 
-    // ------------------------------------------------------------------ actions
     function armDelete() {
         if (!root.db || !root.selectedRow) return
         if (root.deleteArmed && root.deleteArmId === root.selectedId) {
@@ -115,7 +93,6 @@ Item {
         root.db.clearHistory()
     }
 
-    // ------------------------------------------------------------------ keys
     function onKey(event) {
         if (event.key === Qt.Key_Down || event.key === Qt.Key_J || event.text === "j") {
             root.moveSelection(1); event.accepted = true
@@ -131,8 +108,8 @@ Item {
         }
     }
 
-    // Keep a valid selection after refreshes (watcher/via db, spec §4): when
-    // the deleted/cleared row is gone, fall back to the newest row.
+    // Keep a valid selection after refreshes (watcher/via db): when the
+    // deleted/cleared row is gone, fall back to the newest row.
     function onHistoryChanged() {
         var rows = root.rowList
         if (rows.length === 0) {
@@ -140,13 +117,12 @@ Item {
             root.cancelDelete()
             return
         }
-        if (root.indexOfId(rows, root.selectedId) < 0) {
+        if (ItemJs.indexOfId(rows, root.selectedId) < 0) {
             root.selectedId = rows[0].id
             if (root.selectedIndex >= 0) listView.positionViewAtIndex(root.selectedIndex, ListView.Center)
         }
     }
 
-    // ------------------------------------------------------------------ focus owner
     Item {
         id: pump
         anchors.fill: parent
@@ -154,47 +130,20 @@ Item {
         Keys.onPressed: function(event) { root.onKey(event) }
     }
 
-    // ------------------------------------------------------------------ layout
     ColumnLayout {
         anchors.fill: parent
         spacing: Style.spacing.sm
 
-        // -------- header ---------------------------------------------------
         RowLayout {
             Layout.fillWidth: true
-            spacing: Style.spacing.md
-
-            Text {
-                text: "History"
-                color: root.foreground
-                font.family: Style.font.family
-                font.pixelSize: Style.font.title
-                font.bold: true
-            }
-
-            Item { Layout.fillWidth: true }
-
-            Text {
-                text: (root.db ? root.db.history.length : 0) + " entries"
-                color: Qt.darker(root.foreground, 1.3)
-                font.family: Style.font.family
-                font.pixelSize: Style.font.caption
-                QQC.ToolTip.visible: countHover.hovered
-                QQC.ToolTip.delay: 500
-                QQC.ToolTip.text: "mutations, newest first"
-            }
-            HoverHandler { id: countHover }
-        }
-
-        // -------- table header --------------------------------------------
-        RowLayout {
-            Layout.fillWidth: true
+            Layout.leftMargin: Style.spacing.controlPaddingX
+            Layout.rightMargin: Style.spacing.controlPaddingX
             spacing: Style.spacing.sm
 
-            Text { Layout.preferredWidth: root.colTypeW; text: "type"; color: Qt.darker(root.foreground, 1.5); font.family: Style.font.family; font.pixelSize: Style.font.caption }
-            Text { Layout.fillWidth: true; text: "title"; elide: Text.ElideRight; color: Qt.darker(root.foreground, 1.5); font.family: Style.font.family; font.pixelSize: Style.font.caption }
-            Text { Layout.preferredWidth: root.colActionW; text: "action"; color: Qt.darker(root.foreground, 1.5); font.family: Style.font.family; font.pixelSize: Style.font.caption }
-            Text { Layout.preferredWidth: root.colTsW; text: "timestamp"; color: Qt.darker(root.foreground, 1.5); font.family: Style.font.family; font.pixelSize: Style.font.caption }
+            Text { Layout.preferredWidth: root.colTypeW; text: "type"; color: Util.alpha(root.foreground, 0.62); font.family: Style.font.family; font.pixelSize: Style.font.caption }
+            Text { Layout.fillWidth: true; text: "title"; elide: Text.ElideRight; color: Util.alpha(root.foreground, 0.62); font.family: Style.font.family; font.pixelSize: Style.font.caption }
+            Text { Layout.preferredWidth: root.colActionW; text: "action"; color: Util.alpha(root.foreground, 0.62); font.family: Style.font.family; font.pixelSize: Style.font.caption }
+            Text { Layout.preferredWidth: root.colTsW; text: "timestamp"; color: Util.alpha(root.foreground, 0.62); font.family: Style.font.family; font.pixelSize: Style.font.caption }
         }
 
         Rectangle {
@@ -210,9 +159,9 @@ Item {
             Text {
                 anchors.centerIn: parent
                 visible: listView.count === 0
-                text: "No history entries yet —\nmutations from the Notes & Todos tab appear here"
+                text: "No history entries yet —\nmutations from the Items tab appear here"
                 horizontalAlignment: Text.AlignHCenter
-                color: Qt.darker(root.foreground, 1.6)
+                color: Util.alpha(root.foreground, 0.5)
                 font.family: Style.font.family
                 font.pixelSize: Style.font.body
                 lineHeight: 1.6
@@ -226,7 +175,6 @@ Item {
                 keyNavigationEnabled: false
                 spacing: Style.spacing.xxs
                 model: root.rowList
-                currentIndex: root.selectedIndex
 
                 delegate: Rectangle {
                     required property var modelData
@@ -234,7 +182,7 @@ Item {
                     width: listView.width
                     height: rowRow.implicitHeight + Style.space(10)
                     radius: Style.cornerRadius
-                    color: index === listView.currentIndex
+                    color: Number(modelData.id) === root.selectedId
                         ? Style.selectedFillFor(root.foreground, root.accent)
                         : "transparent"
 
@@ -249,19 +197,19 @@ Item {
 
                         Text {
                             Layout.preferredWidth: root.colTypeW
-                            text: modelData.type === "todo" ? "[T]" : "[N]"
-                            color: index === listView.currentIndex
+                            text: modelData.type === "todo" ? Icons.boxOff : Icons.note
+                            color: Number(modelData.id) === root.selectedId
                                 ? Style.selectedStateColor(root.foreground, root.accent)
-                                : Qt.darker(root.foreground, 1.2)
+                                : Util.alpha(root.foreground, 0.75)
                             font.family: Style.font.family
-                            font.pixelSize: Style.font.bodySmall
+                            font.pixelSize: Style.font.icon
                         }
 
                         Text {
                             Layout.fillWidth: true
                             text: modelData.title
                             elide: Text.ElideRight
-                            color: index === listView.currentIndex
+                            color: Number(modelData.id) === root.selectedId
                                 ? Style.selectedStateColor(root.foreground, root.accent)
                                 : root.foreground
                             font.family: Style.font.family
@@ -279,7 +227,7 @@ Item {
                         Text {
                             Layout.preferredWidth: root.colTsW
                             text: root.formatTs(modelData.ts)
-                            color: Qt.darker(root.foreground, 1.3)
+                            color: Util.alpha(root.foreground, 0.62)
                             font.family: Style.font.family
                             font.pixelSize: Style.font.bodySmall
                         }
@@ -299,24 +247,28 @@ Item {
             }
         }
 
-        // -------- footer ---------------------------------------------------
+        Rectangle {
+            Layout.fillWidth: true
+            height: 1
+            color: Util.alpha(root.foreground, 0.10)
+        }
+
         RowLayout {
             Layout.fillWidth: true
             spacing: Style.spacing.md
 
-            Text {
-                text: root.deleteArmed ? "Press d again to confirm delete" : "j/k move · d delete · c clear · Esc close"
-                color: root.deleteArmed ? Color.urgent : Qt.darker(root.foreground, 1.5)
-                font.family: Style.font.family
-                font.pixelSize: Style.font.caption
-                Layout.alignment: Qt.AlignVCenter
+            HintBar {
+                Layout.fillWidth: true
+                foreground: root.foreground
+                urgent: root.deleteArmed
+                hints: root.deleteArmed
+                    ? [["d", "press again to delete"]]
+                    : [["j/k", "move"], ["d d", "delete"], ["c", "clear"], ["Esc", "close"]]
             }
 
-            Item { Layout.fillWidth: true }
-
-            Button {
+            ActionButton {
                 id: clearButton
-                text: "Clear History"
+                text: "Clear history"
                 bordered: true
                 enabled: root.clearButtonEnabled
                 opacity: root.clearButtonEnabled ? 1 : 0.5
@@ -333,12 +285,11 @@ Item {
         onTriggered: root.deleteArmId = -1
     }
 
-    // ------------------------------------------------------------------ db sync
     Connections {
         target: root.db
         function onHistoryChanged() { root.onHistoryChanged() }
         function onHistoryRowDeleted(id) {
-            var idx = root.indexOfId(root.rowList, Number(id))
+            var idx = ItemJs.indexOfId(root.rowList, Number(id))
             var title = idx >= 0 ? root.rowList[idx].title : "entry"
             if (root.toast) root.toast.show("Deleted — " + title)
         }

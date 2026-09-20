@@ -7,18 +7,16 @@ BarWidget {
     id: root
     moduleName: "io.github.darksurferza.omatodolist"
 
-    // The bar's findPanelWidget (Bar.qml) requires open/close/opened on the
-    // bar-widget root, and the popout coordinator compares against
-    // slot.activeItem — so the widget, not the nested panel, is the identity.
+    // Bar.qml's findPanelWidget requires open/close/opened on the bar-widget
+    // root (not the nested panel), so the widget is the popout identity.
     readonly property bool opened: panelItem ? panelItem.opened === true : false
 
     function open() { if (panelItem) panelItem.open() }
     function close() { if (panelItem) panelItem.close() }
     function togglePanel() { if (panelItem) panelItem.toggle() }
 
-    // Forwarded so this widget can stand in for the panel as the bar's popout
-    // identity: Bar.requestPopout prefers closeForPopoutSwitch over close, and
-    // KeyboardPanel reads popoutSwitchClosing back off its owner.
+    // Forwarded: Bar.requestPopout prefers closeForPopoutSwitch over close,
+    // and KeyboardPanel reads popoutSwitchClosing back off its owner.
     readonly property bool popoutSwitchClosing: panelItem ? panelItem.popoutSwitchClosing === true : false
     function closeForPopoutSwitch() { if (panelItem) panelItem.closeForPopoutSwitch() }
 
@@ -34,11 +32,9 @@ BarWidget {
         if ("hostWidget" in target) target.hostWidget = root
     }
 
-    // ------------------------------------------------------------------ IPC
-    // IPC helpers (spec §7/§9). Mutations go through the async sqlite3
-    // Process, so each call acks immediately and the FileView watcher's reload
-    // makes the change converge on the panels + list() cache (spec §4 — this is
-    // the "no direct DB access" path the §9 agent skill is built on).
+    // Mutations go through the async sqlite3 Process, so each call acks
+    // immediately and the FileView watcher's reload converges the change onto
+    // the panels + list() cache afterwards.
     function ipcAdd(type, title, body) {
         var t = String(title || "").trim()
         if (t === "") return JSON.stringify({ ok: false, error: "title is required" })
@@ -86,9 +82,9 @@ BarWidget {
     onBarChanged: injectPanel()
     onSettingsChanged: injectPanel()
 
-    // Data layer (Phase 1): owns sqlite3 access, the db file watcher, and the
-    // cached counts the bar badge binds to. The panel keeps its own instance
-    // (the db file is the source of truth; each watcher keeps its view fresh).
+    // Owns sqlite3 access, the db file watcher, and the cached counts the bar
+    // badge binds to. The panel keeps its own instance — the db file is the
+    // source of truth, and each watcher keeps its view fresh.
     Data.Db {
         id: db
         Component.onCompleted: db.init()
@@ -117,8 +113,8 @@ BarWidget {
         function hide(): void { root.close() }
         function toggle(): void { root.togglePanel() }
 
-        // Data API (spec §7/§9). `delete` is a JS keyword so the per-row
-        // delete is exposed as `remove`; every call returns JSON on stdout.
+        // `delete` is a reserved word, so the per-row delete is exposed as
+        // `remove`; every call returns JSON on stdout.
         function ping(): string { return "ok" }
         function addNote(title: string, body: string): string {
             return root.ipcAdd("note", title, body)

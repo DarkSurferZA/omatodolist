@@ -1,30 +1,19 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import QtQuick.Controls
 import QtQuick.Layouts
-import Quickshell
 import qs.Commons
 import qs.Ui
 import "data" as Data
 import "ui" as Ui
 
-// Scratchpad popup: "Notes & Todos" (Phase 2) + "History" (Phase 3).
-// MainTab + HistoryTab + the Toast live here (not in the tabs) so every cross-
-// component reference resolves through this file's "ui" directory import —
-// Quickshell ignores single-file imports.
 Panel {
     id: root
     moduleName: "io.github.darksurferza.omatodolist"
-    // IPC: BarWidget.qml owns the `scratchpad` handler (open/close/show/hide/
-    // toggle; Phase 4 adds clearHistory + the data API). The kit Panel's own
-    // IpcHandler also registers the same target (Quickshell registers it even
-    // with manageIpc:false / empty ipcTarget) — the shell logs a "will not be
-    // used" warning against BarWidget's handler, exactly like every other
-    // kit-based plugin including omaplug and the first-party panels. It is
-    // benign while both handlers dispatch to the same open/close/toggle
-    // functions; Phase 4 must implement the richer API on the winning handler
-    // (the Panel-side one).
+    // BarWidget.qml owns the `scratchpad` IPC handler. The kit Panel also
+    // registers the same target, so the shell's "will not be used" warning
+    // against BarWidget's handler here is benign (both dispatch to the same
+    // open/close/toggle functions).
     ipcTarget: "scratchpad"
     manageIpc: false
 
@@ -32,19 +21,26 @@ Panel {
     property var hostWidget: null
     readonly property var barIdentity: hostWidget || root
 
-    // Data layer (Phase 1). Own instance + file watcher (spec §4); reopening
-    // the panel re-loads as a safety net on top of the watcher.
+    // Own instance + file watcher; reopening the panel re-loads as a safety
+    // net on top of the watcher.
     Data.Db {
         id: db
         Component.onCompleted: db.init()
     }
     onOpenedChanged: {
-        if (!root.opened) return
+        if (!root.opened) {
+            mainTab.commitIfDirty()
+            return
+        }
+        root.activeTab = 0
         db.load()
         root.resetTabFocus()
         focusPrimeTimer.restart()
     }
-    onActiveTabChanged: root.resetTabFocus()
+    onActiveTabChanged: {
+        mainTab.commitIfDirty()
+        root.resetTabFocus()
+    }
 
     // The popup surface maps a beat after `opened` flips (layer-shell focus
     // negotiation), so re-prime keyboard focus on a short retry like the
@@ -88,19 +84,15 @@ Panel {
             anchors.margins: Style.space(16)
             spacing: Style.space(12)
 
-            TabBar {
-                id: tabBar
+            Ui.PanelHeader {
                 Layout.fillWidth: true
-
-                TabButton {
-                    text: "Notes & Todos"
-                    onClicked: root.activeTab = 0
-                    focusPolicy: Qt.NoFocus
-                }
-                TabButton {
-                    text: "History"
-                    onClicked: root.activeTab = 1
-                    focusPolicy: Qt.NoFocus
+                db: db
+                activeTab: root.activeTab
+                foreground: root.contentForeground
+                onTabPicked: function(index) { root.activeTab = index }
+                onNewRequested: {
+                    root.activeTab = 0
+                    mainTab.startNew("note")
                 }
             }
 
@@ -117,7 +109,7 @@ Panel {
                     onCloseRequested: root.close()
                 }
 
-                // History — read-only mutation log (spec §3.3).
+                // History — read-only mutation log.
                 Ui.HistoryTab {
                     id: historyTab
                     db: db

@@ -2,10 +2,6 @@ import QtQuick
 import qs.Commons
 import qs.Ui
 
-// Transient status line shown inside the panel (delete confirmations,
-// save/status feedback, errors). Call `show(message[, urgent])` — the toast
-// fades in, then auto-hides after `duration` ms. The parent positions this
-// item; the toast sizes itself to its text.
 Item {
     id: root
 

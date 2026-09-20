@@ -1,20 +1,9 @@
 .pragma library
 
-// Scratchpad SQL builders + result parsers.
-//
-// This module is deliberately Quickshell-free (no `Quickshell.*`, no QML types)
-// so it can be exercised directly under Node (see test/phase1-db.mjs). It owns
-// ALL SQL for the plugin: views and Db.qml never build SQL ad hoc — they call
-// these builders and the `*Command()` helpers, which return ready-to-run argv
-// arrays for the sqlite3 CLI.
-//
-// Conventions:
-//   - `q()` quotes a string as a SQL literal (single quotes doubled).
-//   - Timestamps are unix seconds (spec §2).
-//   - Every mutation appends a history row inside the same BEGIN…COMMIT.
-//   - Reads that return rows use `sqlite3 -json` and are parsed by parseRows().
-
-// --------------------------------------------------------------------------- escaping
+// Scratchpad SQL builders + result parsers. Deliberately Quickshell-free (no
+// `Quickshell.*`, no QML types) so it's exercised directly under Node (see
+// test/db.test.mjs). Owns all SQL for the plugin — views and Db.qml call
+// these builders instead of building SQL ad hoc.
 
 // Quote a JS string as a single-quoted SQL literal, doubling embedded quotes.
 function q(value) {
@@ -27,16 +16,12 @@ function likeEscape(s) {
   return String(s).replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_")
 }
 
-// --------------------------------------------------------------------------- time
-
-// Unix timestamp in seconds (spec §2).
+// Unix timestamp in seconds.
 function now() {
   return Math.floor(Date.now() / 1000)
 }
 
-// --------------------------------------------------------------------------- SQL builders
-
-// Unified list (spec §3.1/§3.2). filterType is "all"|"note"|"todo";
+// Unified list. filterType is "all"|"note"|"todo";
 // query is an optional case-insensitive substring match on title.
 // Sort order: pending (unread/in-progress, status 0) always on top, then
 // recency — `status ASC, updated_at DESC`.
@@ -48,19 +33,24 @@ function listSql(filterType, query) {
     else where.push("type = " + q(ft))
   }
   var needle = String(query || "").trim()
-  if (needle !== "")
-    where.push("title LIKE " + q("%" + likeEscape(needle) + "%") + " ESCAPE '\\'")
+  if (needle !== "") {
+    var pattern = q("%" + likeEscape(needle) + "%")
+    where.push("(title LIKE " + pattern + " ESCAPE '\\' OR body LIKE " + pattern + " ESCAPE '\\')")
+  }
   var sql = "SELECT id, type, title, body, status, created_at, updated_at FROM items"
   if (where.length > 0) sql += " WHERE " + where.join(" AND ")
   sql += " ORDER BY status ASC, updated_at DESC, id DESC"
   return sql
 }
 
-// Pending counts for the bar badge (spec §3.2): unread notes / in-progress todos.
+// Pending counts for the bar badge and the panel header: unread notes /
+// in-progress todos, plus unfiltered totals per type for the filter segment.
 function countsSql() {
   return "SELECT "
     + "(SELECT COUNT(*) FROM items WHERE type = 'note' AND status = 0) AS unreadNotes, "
-    + "(SELECT COUNT(*) FROM items WHERE type = 'todo' AND status = 0) AS inProgressTodos"
+    + "(SELECT COUNT(*) FROM items WHERE type = 'todo' AND status = 0) AS inProgressTodos, "
+    + "(SELECT COUNT(*) FROM items WHERE type = 'note') AS notes, "
+    + "(SELECT COUNT(*) FROM items WHERE type = 'todo') AS todos"
 }
 
 // Insert a new item (status 0) + "added" history row, and return its id.
@@ -120,12 +110,23 @@ function deleteItemSql(id) {
     + " COMMIT;"
 }
 
-// Newest-first history rows (spec §3.3). Capped to keep the table light.
-function historySql(limit) {
-  var n = (limit === undefined || limit === null) ? 500 : Number(limit)
-  if (!isFinite(n) || n <= 0) n = 500
+// Flip an item's type (note<->todo), bump updated_at, keep status, and
+// record a "converted" history row — all in the same transaction.
+function convertTypeSql(id) {
+  var nid = Number(id)
+  var ts = now()
+  return "BEGIN;"
+    + " UPDATE items SET type = CASE type WHEN 'note' THEN 'todo' ELSE 'note' END, updated_at = " + ts
+    + " WHERE id = " + nid + ";"
+    + " INSERT INTO history (type, title, action, ts) "
+    + "SELECT type, title, 'converted', " + ts + " FROM items WHERE id = " + nid + ";"
+    + " COMMIT;"
+}
+
+// Newest-first history rows. Capped to keep the table light.
+function historySql() {
   return "SELECT id, type, title, action, ts FROM history "
-    + "ORDER BY ts DESC, id DESC LIMIT " + Math.floor(n)
+    + "ORDER BY ts DESC, id DESC LIMIT 500"
 }
 
 function deleteHistorySql(id) {
@@ -135,8 +136,6 @@ function deleteHistorySql(id) {
 function clearHistorySql() {
   return "DELETE FROM history"
 }
-
-// --------------------------------------------------------------------------- schema
 
 // Full schema, applied idempotently on first run (every statement uses
 // IF NOT EXISTS). Mirrors data/schema.sql, which stays as the human-readable
@@ -163,8 +162,6 @@ var SCHEMA = "CREATE TABLE IF NOT EXISTS items ("
   + ");"
   + "CREATE INDEX IF NOT EXISTS idx_history_ts ON history(ts DESC);"
 
-// --------------------------------------------------------------------------- command builders
-
 // argv for a read or write via the sqlite3 CLI. `json` enables -json output.
 //
 // `.timeout 5000` is a CLI dot-command (not SQL) that sets the busy timeout for
@@ -185,8 +182,6 @@ function initCommand(dataDir, dbPath) {
     String(dataDir), String(dbPath), SCHEMA]
 }
 
-// --------------------------------------------------------------------------- result parsers
-
 // Parse a `sqlite3 -json` result into an array of row objects (or []).
 // An empty result set prints nothing, so "" → [].
 function parseRows(text) {
@@ -200,25 +195,22 @@ function parseRows(text) {
   }
 }
 
-// Parse countsSql() output into { unreadNotes, inProgressTodos }.
+// Parse countsSql() output into { unreadNotes, inProgressTodos, notes, todos }.
 function parseCounts(text) {
   var rows = parseRows(text)
   var row = rows.length > 0 ? rows[0] : {}
   return {
     unreadNotes: Number(row.unreadNotes) || 0,
-    inProgressTodos: Number(row.inProgressTodos) || 0
+    inProgressTodos: Number(row.inProgressTodos) || 0,
+    notes: Number(row.notes) || 0,
+    todos: Number(row.todos) || 0
   }
 }
 
-// Parse addSql() output into the new item's id (-1 if absent).
-// Writes run WITHOUT -json, so the output is a plain integer like "2\n";
-// some call sites pass -json arrays, so both forms are handled.
+// Parse addSql() output into the new item's id (-1 if absent). Writes run
+// WITHOUT -json, so the output is a plain integer like "2\n".
 function parseId(text) {
   var t = String(text || "").trim()
   var n = Number(t)
-  if (t !== "" && isFinite(n)) return n
-  var rows = parseRows(t)
-  var row = rows.length > 0 ? rows[0] : {}
-  var id = Number(row.id)
-  return isFinite(id) ? id : -1
+  return (t !== "" && isFinite(n)) ? n : -1
 }
