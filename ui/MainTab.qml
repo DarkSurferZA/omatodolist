@@ -220,6 +220,16 @@ Item {
         root.focusList()
     }
 
+    // Dirtiness is read off the fields rather than activeFocus: closing the
+    // panel releases keyboard focus (WlrLayershell keyboard ownership follows
+    // `open` — see KeyboardPanel.qml) before this function runs.
+    function commitIfDirty() {
+        var dirty = root.draftNew
+            || (!!root.selectedItem
+                && (titleField.text !== root._editBaseTitle || bodyField.text !== root._editBaseBody))
+        if (dirty) root.commitEditor()
+    }
+
     // ------------------------------------------------------------------ keys
     function onKey(event) {
         if (root.focusState !== 2) { handleControlFocusedKey(event); return }
