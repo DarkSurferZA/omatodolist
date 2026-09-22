@@ -23,7 +23,7 @@ import qs.Ui
 //           · Esc closes the panel
 //   editor: fields own printable keys · Tab title→body, body→save+list
 //           · Enter in body saves · Esc saves (auto-save on leaving — spec
-//           §3.4) · `t` with an empty title toggles a new draft's type
+//           §3.4) · `Ctrl+T` with an empty title toggles a new draft's type
 //           · space/d intentionally do nothing here (list actions only)
 //   control: Esc returns to the list · Tab walks filter → segment → list
 //
@@ -176,7 +176,7 @@ Item {
         Qt.callLater(function() { titleField.forceActiveFocus() })
     }
 
-    // `t` (empty title) / clicking the Note/Todo chips flips a draft's type.
+    // `Ctrl+T` (empty title) / clicking the Note/Todo chips flips a draft's type.
     function toggleDraftType() {
         if (!root.draftNew) return
         root.draftType = root.draftType === "todo" ? "note" : "todo"
@@ -583,8 +583,8 @@ Item {
                             root.commitEditor(); event.accepted = true
                         } else if (event.key === Qt.Key_Escape) {
                             root.commitEditor(); event.accepted = true
-                        } else if (event.text === "t" && root.draftNew
-                            && String(titleField.text) === "" && !event.modifiers) {
+                        } else if (event.text === Qt.Key_T && root.draftNew
+                            && (event.modifiers & Qt.ControlModifier)) {
                             root.toggleDraftType(); event.accepted = true
                         }
                     }
@@ -629,7 +629,7 @@ Item {
                 Text {
                     Layout.fillWidth: true
                     text: root.draftNew
-                        ? "`t` toggles note/todo (empty title) · Enter in body saves · Esc cancels an empty draft"
+                        ? "`Ctrl+T` toggles note/todo (empty title) · Enter in body saves · Esc cancels an empty draft"
                         : "space/d act on the list pane · Tab back to the list when done"
                     color: Qt.darker(root.foreground, 1.5)
                     font.family: Style.font.family
